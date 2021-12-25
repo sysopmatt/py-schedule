@@ -11,3 +11,9 @@ media
 
 # Backup files #
 *.bak
+notes.txt
+
+# Celery #
+celerybeat-schedule.db
+celerybeat.pid
+results.sqlite
