@@ -4,9 +4,27 @@ import csv
 import os
 
 from .models import Schedule
-from celery import shared_task
+from celery import shared_task, app, task
 from tvdb_api_client import TVDBClient
 from datetime import datetime, timedelta
+from celery.schedules import crontab
+
+
+@app.on_after_finalize.connect
+def setup_periodic_tasks(sender, **kwargs):
+    sender.add_periodic_task(
+        crontab(minute=1),
+        test.s("world")
+    )
+    sender.add_periodic_task(
+        crontab(minute=1),
+        sample_task()
+    )
+
+
+@shared_task
+def test(arg):
+    print(arg)
 
 
 @shared_task
@@ -117,31 +135,35 @@ def get_time():
 
 @shared_task
 def init():
-    while True:
-        thread, tvdb_id, sub = '', '', ''
-        loop = True
+    thread, tvdb_id, sub = '', '', ''
+    loop = True
+    d = get_time()
+    print('Evaluating the schedule...  Current time is: ' + str(d))
+    while loop:  # Check to see if it's time to post the episode
         d = get_time()
-        print('Evaluating the schedule...  Current time is: ' + str(d))
-        while loop:  # Check to see if it's time to post the episode
-            d = get_time()
-            thread, loop, show, tvdb_id = evaluate_schedules(d)
-            time.sleep(1)
+        thread, loop, show, tvdb_id = evaluate_schedules(d)
+        time.sleep(1)
 
-        #  Get episode information
-        print('Scheduled post found for the sub /r/' + os.environ.get('SUBREDDIT-' + show) + ' for '
-              + show + ' for the "' + thread + '" discussion thread.')
-        tlst, blst, dlst = get_episode_info(thread, d, tvdb_id, show)
-        try:
-            datefromlist = str(dlst[0])
-        except IndexError:
-            print("No episode airs today")
-        else:
-            datefromd = str(d.date())
-            if datefromlist == datefromd:  # Create the post (handles mega threads)
-                t, b = generate_post(tlst, blst)
-                #  Post to reddit
-                post_to_reddit(t, b, show)
-                print('Posting completed!')
-        finally:
-            print('Exiting loop.  Sleeping for 60 seconds before re-check.')
-            time.sleep(60)
+    #  Get episode information
+    print('Scheduled post found for the sub /r/' + os.environ.get('SUBREDDIT-' + show) + ' for '
+          + show + ' for the "' + thread + '" discussion thread.')
+    tlst, blst, dlst = get_episode_info(thread, d, tvdb_id, show)
+    try:
+        datefromlist = str(dlst[0])
+    except IndexError:
+        print("No episode airs today")
+    else:
+        datefromd = str(d.date())
+        if datefromlist == datefromd:  # Create the post (handles mega threads)
+            t, b = generate_post(tlst, blst)
+            #  Post to reddit
+            post_to_reddit(t, b, show)
+            print('Posting completed!')
+    finally:
+        print('Exiting loop.  Sleeping for 60 seconds before re-check.')
+        time.sleep(60)
+
+
+@shared_task
+def sample_task():
+    print("The sample task just ran.")
