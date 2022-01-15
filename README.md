@@ -1,4 +1,4 @@
-# Heroku starter for Django + React
+# Python automation platform
 
 Starter package for creating a Heroku dyno with Django API backend and React front end
 
